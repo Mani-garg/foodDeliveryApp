@@ -394,3 +394,85 @@ src/controllers/orderController.js       Request validation and order SQL transa
 src/middleware/errorHandler.js     404 and error response handlers
 database/schema.sql                MySQL DDL
 ```
+
+## Delivery Partner Matching
+
+The service includes a basic delivery partner matching API that returns the nearest available driver for a restaurant or order pickup point.
+
+### API
+
+Create or seed a delivery partner:
+
+```http
+POST /api/v1/delivery-partners
+Content-Type: application/json
+
+{
+  "name": "Taylor Driver",
+  "phone": "+15551234567",
+  "vehicle_type": "bike",
+  "status": "AVAILABLE",
+  "current_latitude": 40.73061,
+  "current_longitude": -73.935242
+}
+```
+
+Update a partner location as the driver app reports GPS pings:
+
+```http
+PATCH /api/v1/delivery-partners/1/location
+Content-Type: application/json
+
+{
+  "current_latitude": 40.73110,
+  "current_longitude": -73.93490,
+  "status": "AVAILABLE"
+}
+```
+
+Find the nearest partner to a pickup location:
+
+```http
+POST /api/v1/delivery-partners/match
+Content-Type: application/json
+
+{
+  "pickup_latitude": 40.73061,
+  "pickup_longitude": -73.935242,
+  "radius_km": 5,
+  "limit": 3,
+  "max_location_age_minutes": 10
+}
+```
+
+The response includes `nearest_partner`, ordered `candidates`, and search metadata with the target geohash and neighboring geohash prefixes checked.
+
+### Geohashing approach
+
+Geohash encodes latitude and longitude into a sortable base-32 string. Nearby points usually share the same prefix, so the matcher stores each driver's current location as `delivery_partners.current_geohash` and uses `idx_delivery_partners_status_geohash (status, current_geohash)` to avoid scanning every driver.
+
+Matching flow:
+
+1. Validate the pickup coordinates and requested radius.
+2. Pick a geohash precision based on the search radius (`6` for <= 1 km, `5` for <= 5 km, `4` for <= 20 km, otherwise `3`).
+3. Encode the pickup point and search that cell plus its 8 neighboring cells to avoid missing drivers across geohash boundaries.
+4. Query only fresh, `AVAILABLE` driver rows whose `current_geohash` starts with one of those prefixes.
+5. Compute exact Haversine distance for those candidates, filter to `radius_km`, and order by distance.
+
+This keeps the candidate set small enough for 100k active drivers because MySQL can use the status/geohash index for prefix lookups before applying the exact distance calculation. A production version would typically add Redis GEO or a dedicated spatial index for higher write rates, but the same strategy still applies: geohash/spatial index first, exact distance second.
+
+### Delivery partner schema
+
+`delivery_partners` stores the partner profile, current status, latest coordinates, computed geohash, and timestamp for location freshness.
+
+Important columns:
+
+- `status`: Only `AVAILABLE` partners are considered by matching.
+- `current_latitude`, `current_longitude`: Latest GPS point from the driver app.
+- `current_geohash`: Geohash generated from the latest GPS point and used for indexed candidate lookup.
+- `location_updated_at`: Filters out stale driver locations.
+
+Indexes:
+
+- `idx_delivery_partners_status_geohash` supports indexed lookup of available drivers in the pickup geohash cell and neighbors.
+- `idx_delivery_partners_location_freshness` supports filtering stale locations.

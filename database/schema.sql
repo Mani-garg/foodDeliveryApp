@@ -128,3 +128,20 @@ CREATE TABLE IF NOT EXISTS order_history (
   INDEX idx_order_history_order_created (order_id, created_at),
   INDEX idx_order_history_new_status (new_status)
 );
+
+CREATE TABLE IF NOT EXISTS delivery_partners (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  phone VARCHAR(32) NOT NULL,
+  vehicle_type VARCHAR(50) NOT NULL DEFAULT 'bike',
+  status ENUM('AVAILABLE', 'ASSIGNED', 'PICKING_UP', 'DELIVERING', 'OFFLINE') NOT NULL DEFAULT 'AVAILABLE',
+  current_latitude DECIMAL(10, 8) NOT NULL,
+  current_longitude DECIMAL(11, 8) NOT NULL,
+  current_geohash VARCHAR(12) NOT NULL,
+  location_updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_delivery_partners_status_geohash (status, current_geohash),
+  INDEX idx_delivery_partners_location_freshness (status, location_updated_at),
+  INDEX idx_delivery_partners_phone (phone)
+);
