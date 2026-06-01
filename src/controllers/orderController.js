@@ -1,4 +1,6 @@
 const db = require('../config/db');
+const { kafkaConfig } = require('../config/kafka');
+const { publishOrderCreated } = require('../events/orderEvents');
 
 const ORDER_STATUSES = ['PLACED', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
 const TERMINAL_STATUSES = ['DELIVERED', 'CANCELLED'];
@@ -96,6 +98,7 @@ function normalizeItems(items) {
 
 async function createOrder(req, res, next) {
   let connection;
+  let transactionCommitted = false;
 
   try {
     requireFields(req.body, ['customer_id', 'restaurant_id', 'items']);
@@ -173,16 +176,26 @@ async function createOrder(req, res, next) {
     const [historyRows] = await connection.query('SELECT * FROM order_history WHERE order_id = ? ORDER BY id ASC', [orderId]);
 
     await connection.commit();
+    transactionCommitted = true;
+
+    const createdOrder = {
+      ...createdOrderRows[0],
+      items: createdItemRows,
+      history: historyRows,
+    };
+    const orderCreatedEvent = await publishOrderCreated(createdOrderRows[0], createdItemRows);
 
     res.status(201).json({
-      data: {
-        ...createdOrderRows[0],
-        items: createdItemRows,
-        history: historyRows,
+      data: createdOrder,
+      events: {
+        orderCreated: {
+          eventId: orderCreatedEvent.eventId,
+          topic: kafkaConfig.orderCreatedTopic,
+        },
       },
     });
   } catch (err) {
-    if (connection) {
+    if (connection && !transactionCommitted) {
       await connection.rollback();
     }
     next(err);
