@@ -64,3 +64,67 @@ CREATE TABLE IF NOT EXISTS menu_items (
   INDEX idx_menu_items_restaurant_category (restaurant_id, category_id, is_available),
   INDEX idx_menu_items_name (name)
 );
+
+CREATE TABLE IF NOT EXISTS orders (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  customer_id BIGINT UNSIGNED NOT NULL,
+  restaurant_id BIGINT UNSIGNED NOT NULL,
+  status ENUM('PLACED', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED') NOT NULL DEFAULT 'PLACED',
+  subtotal_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  delivery_fee DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  delivery_address_line1 VARCHAR(255) NOT NULL,
+  delivery_address_line2 VARCHAR(255) NULL,
+  delivery_city VARCHAR(100) NOT NULL,
+  delivery_state VARCHAR(100) NOT NULL,
+  delivery_postal_code VARCHAR(20) NOT NULL,
+  delivery_country VARCHAR(100) NOT NULL DEFAULT 'US',
+  special_instructions TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_orders_restaurant
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+    ON DELETE RESTRICT,
+  CONSTRAINT chk_orders_amounts_non_negative CHECK (
+    subtotal_amount >= 0 AND delivery_fee >= 0 AND total_amount >= 0
+  ),
+  INDEX idx_orders_customer_created (customer_id, created_at),
+  INDEX idx_orders_restaurant_status_created (restaurant_id, status, created_at),
+  INDEX idx_orders_status (status)
+);
+
+CREATE TABLE IF NOT EXISTS order_items (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT UNSIGNED NOT NULL,
+  menu_item_id BIGINT UNSIGNED NULL,
+  item_name VARCHAR(150) NOT NULL,
+  quantity INT UNSIGNED NOT NULL,
+  unit_price DECIMAL(10, 2) NOT NULL,
+  line_total DECIMAL(10, 2) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_order_items_order
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_order_items_menu_item
+    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+    ON DELETE SET NULL,
+  CONSTRAINT chk_order_items_quantity_positive CHECK (quantity > 0),
+  CONSTRAINT chk_order_items_amounts_non_negative CHECK (unit_price >= 0 AND line_total >= 0),
+  INDEX idx_order_items_order (order_id),
+  INDEX idx_order_items_menu_item (menu_item_id)
+);
+
+CREATE TABLE IF NOT EXISTS order_history (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT UNSIGNED NOT NULL,
+  previous_status ENUM('PLACED', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED') NULL,
+  new_status ENUM('PLACED', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED') NOT NULL,
+  changed_by VARCHAR(100) NOT NULL DEFAULT 'system',
+  note VARCHAR(500) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_order_history_order
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+    ON DELETE CASCADE,
+  INDEX idx_order_history_order_created (order_id, created_at),
+  INDEX idx_order_history_new_status (new_status)
+);
