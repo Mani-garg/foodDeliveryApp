@@ -24,6 +24,15 @@ The service listens on `PORT` from `.env` or `3000` by default. Kafka defaults t
 | `KAFKA_DELIVERY_GROUP_ID` | `delivery-service` | Consumer group for delivery dispatch processing. |
 | `KAFKA_CONSUMERS_ENABLED` | `true` | Set to `false` to run only the HTTP API without starting local demo consumers. |
 
+## Redis and WebSocket Configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection string used to store the latest live driver location per order. |
+| `DRIVER_LOCATION_INTERVAL_MS` | `5000` | Minimum interval between driver GPS updates. Driver apps should send one `driver_location_update` every 5 seconds. |
+| `LOCATION_TTL_SECONDS` | `3600` | Expiration for the latest location snapshot in Redis. |
+| `WEBSOCKET_HEARTBEAT_INTERVAL_MS` | `30000` | Ping interval for removing dead WebSocket connections. |
+
 
 ## Database Schema
 
@@ -385,7 +394,9 @@ src/app.js                         Express app and middleware registration
 src/server.js                      Runtime entry point
 src/config/db.js                   MySQL connection pool
 src/config/kafka.js                Kafka client and topic/group configuration
+src/config/redis.js                Redis client for latest driver location snapshots
 src/events/orderEvents.js          Order event builder and Kafka producer
+src/services/locationTrackingService.js  WebSocket live location tracking and Redis persistence
 src/consumers/                     Kafka consumers for notification and delivery workflows
 src/routes/restaurants.js          Restaurant and menu route definitions
 src/routes/orders.js               Order route definitions
@@ -393,6 +404,68 @@ src/controllers/restaurantController.js  Request validation and restaurant/menu 
 src/controllers/orderController.js       Request validation and order SQL transactions
 src/middleware/errorHandler.js     404 and error response handlers
 database/schema.sql                MySQL DDL
+```
+
+
+## Live Location Tracking
+
+Customers can receive live driver locations over WebSockets while drivers stream their current GPS position. The WebSocket endpoint is:
+
+```text
+/ws/location
+```
+
+### Driver flow
+
+Driver apps should connect to `/ws/location?role=driver&driverId=7` and send one update every 5 seconds:
+
+```json
+{
+  "type": "driver_location_update",
+  "orderId": 123,
+  "driverId": 7,
+  "latitude": 40.7311,
+  "longitude": -73.9349
+}
+```
+
+The server validates coordinates, enforces the 5-second update interval, stores the newest snapshot in Redis under `delivery:order:{orderId}:location`, broadcasts the update to subscribed customers, and replies with:
+
+```json
+{
+  "type": "location_update_ack",
+  "data": {
+    "orderId": 123,
+    "nextUpdateInMs": 5000,
+    "recordedAt": "2026-06-01T00:00:00.000Z"
+  }
+}
+```
+
+### Customer flow
+
+Customer apps should connect to `/ws/location?role=customer` and subscribe to an order:
+
+```json
+{
+  "type": "customer_subscribe",
+  "orderId": 123
+}
+```
+
+After the subscription acknowledgement, the server immediately sends a `location_snapshot` message if Redis already has a latest location for the order. Every future driver ping is delivered as:
+
+```json
+{
+  "type": "driver_location_update",
+  "data": {
+    "orderId": 123,
+    "driverId": 7,
+    "latitude": 40.7311,
+    "longitude": -73.9349,
+    "recordedAt": "2026-06-01T00:00:00.000Z"
+  }
+}
 ```
 
 ## Delivery Partner Matching
