@@ -4,6 +4,7 @@ const helmet = require('helmet');
 
 const restaurantRoutes = require('./routes/restaurants');
 const orderRoutes = require('./routes/orders');
+const deliveryPartnerRoutes = require('./routes/deliveryPartners');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -18,6 +19,7 @@ app.get('/health', (req, res) => {
 
 app.use('/api/v1/restaurants', restaurantRoutes);
 app.use('/api/v1/orders', orderRoutes);
+app.use('/api/v1/delivery-partners', deliveryPartnerRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
