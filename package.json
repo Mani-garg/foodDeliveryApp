@@ -1,18 +1,19 @@
 {
-  "name": "food-delivery-restaurant-service",
+  "name": "food-delivery-service",
   "version": "1.0.0",
-  "description": "Restaurant service for a food delivery app using Node.js, Express, and MySQL.",
+  "description": "Food delivery service APIs for restaurants, menus, and orders using Node.js, Express, and MySQL.",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "check": "node --check src/server.js && node --check src/app.js && node --check src/config/db.js && node --check src/middleware/errorHandler.js && node --check src/routes/restaurants.js && node --check src/controllers/restaurantController.js"
+    "check": "node --check src/server.js && node --check src/app.js && node --check src/config/db.js && node --check src/middleware/errorHandler.js && node --check src/routes/restaurants.js && node --check src/controllers/restaurantController.js && node --check src/routes/orders.js && node --check src/controllers/orderController.js"
   },
   "keywords": [
     "restaurant",
     "express",
     "mysql",
-    "food-delivery"
+    "food-delivery",
+    "order-service"
   ],
   "author": "",
   "license": "MIT",
