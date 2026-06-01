@@ -1,12 +1,12 @@
 {
   "name": "food-delivery-service",
   "version": "1.0.0",
-  "description": "Food delivery service APIs for restaurants, menus, and orders using Node.js, Express, and MySQL.",
+  "description": "Food delivery service APIs for restaurants, menus, and orders using Node.js, Express, MySQL, and Kafka.",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "check": "node --check src/server.js && node --check src/app.js && node --check src/config/db.js && node --check src/middleware/errorHandler.js && node --check src/routes/restaurants.js && node --check src/controllers/restaurantController.js && node --check src/routes/orders.js && node --check src/controllers/orderController.js"
+    "check": "find src -name '*.js' -print0 | xargs -0 -n1 node --check"
   },
   "keywords": [
     "restaurant",
@@ -22,7 +22,8 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "helmet": "^8.0.0",
-    "mysql2": "^3.12.0"
+    "mysql2": "^3.12.0",
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
